@@ -10,6 +10,8 @@ for i in range(1, 9):
     mod1_parts.append(temp)
 
 mod1 = pd.concat(mod1_parts)
+print("MOD 1 data:")
+print(mod1.head())
 
 # Import and concatenate MOD2
 mod2_parts = []
@@ -18,6 +20,8 @@ for i in range(1, 9):
     mod2_parts.append(temp)
 
 mod2 = pd.concat(mod2_parts)
+print("MOD 2 data:")
+print(mod2.head())
 
 # Import and concatenate PODs
 pod_files = {
@@ -34,5 +38,7 @@ for key, value in pod_files.items():
         temp = pd.read_csv(file_path, sep=";", skiprows=(1, 2, 3, 4))
         pod_parts.append(temp)
     pods[key] = pd.concat(pod_parts)
+    print(f"{key} data:")
+    print(pods[key].head())
 
 # PICO, Piano THICK and Piano THIN are similar to the POD modules, use the same code but provide appropriate file paths
