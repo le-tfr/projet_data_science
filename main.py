@@ -6,6 +6,9 @@ import os
 from scipy.interpolate import interp1d
 import numpy as np
 import matplotlib.pyplot as plt
+from termcolor import colored
+
+print(colored("--------------> Séance 1 <--------------", "blue"))
 
 if not os.path.exists("database"):
     os.makedirs("database")
@@ -87,6 +90,8 @@ print(merged_data.head(1))
 print("Enregistrement du fichier database.csv...")
 merged_data.to_csv("database/database.csv", index=False, sep=';')
 print("Fichier database.csv enregistré.")
+
+print(colored("--------------> Séance 2 <--------------", "blue"))
 
 # Vérification des colonnes dans database.csv
 print("Vérification des colonnes de database.csv:")
@@ -201,3 +206,5 @@ for i in range(len(activity_labels)):
     print("\n")
 
 plot_signatures(avg_activity_signatures, activity_labels)
+
+print(colored("--------------> Séance 3 <--------------", "blue"))
