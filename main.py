@@ -154,12 +154,12 @@ def normalize_instance(instance, common_length):
     normalized_instance = f(x)
     return normalized_instance
 
+import numpy as np
+
 def averageSignature(signature_values, common_length):
     normalized_instances = [normalize_instance(instance, common_length) for instance in signature_values]
-    
-    # Filtrez les instances vides pour éviter les erreurs lors du calcul de la moyenne
-    normalized_instances = [instance for instance in normalized_instances if len(instance) > 0]
-    
+    # Filtrez les instances vides ou contenant des NaN pour éviter les erreurs lors du calcul de la moyenne
+    normalized_instances = [instance for instance in normalized_instances if len(instance) > 0 and not np.any(np.isnan(instance))]
     average_signature = np.mean(normalized_instances, axis=0)
     return average_signature
 
