@@ -7,6 +7,11 @@ from scipy.interpolate import interp1d
 import numpy as np
 import matplotlib.pyplot as plt
 from termcolor import colored
+from torch.utils.data import Dataset, DataLoader
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 
 print(colored("--------------> Séance 1 <--------------", "blue"))
 
@@ -208,3 +213,89 @@ for i in range(len(activity_labels)):
 plot_signatures(avg_activity_signatures, activity_labels)
 
 print(colored("--------------> Séance 3 <--------------", "blue"))
+
+all_activities = []  # Liste pour stocker toutes les instances d'activité avec des colonnes supplémentaires
+
+for idact, row in activities.iterrows():
+    start = row['Started'].tz_convert('UTC+01:00')
+    end = row['Ended'].tz_convert('UTC+01:00')
+    act = row['activity']
+
+    activity_data = base[(base['Time'] >= start) & (base['Time'] <= end)].reset_index(drop=True).sort_values(by='Time').drop(columns='Time')
+    
+    activity_data['Activity'] = act  # Ajoute le nom de l'activité
+    activity_data['Label'] = idact  # Ajoute le numéro d'activité
+    all_activities.append(activity_data)
+
+# Concaténer tous les sous-ensembles d'activités en un seul dataframe
+activity_df = pd.concat(all_activities, axis=0, ignore_index=True)
+
+activity_df.to_csv("activities_dataset.csv", index=False, sep=';')
+
+activity_label_mapping = {old_label: new_label for new_label, old_label in enumerate(sorted(activity_instances))}
+print("Dictionnaire d'activités :")
+print(activity_label_mapping)
+
+
+class CustomDataset(Dataset):
+    def __init__(self, csv_file):
+        self.data = pd.read_csv(csv_file, sep=';')  # Read CSV file into DataFrame
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        sample = self.data.iloc[idx, :]
+        # Séparez les caractéristiques (valeurs numériques) des étiquettes (noms d'activité)
+        features = sample[:-2].values.astype(float)  # en supposant que les deux dernières colonnes sont 'Activity' et 'Label'
+        activity_name = sample['Activity']  # Remplacez ceci par le nom de la colonne correspondant à l'activité (chaîne de caractères) dans votre dataframe
+        # Récupérez le numéro d'activité approprié en utilisant le dictionnaire activity_label_mapping
+        label = activity_label_mapping[activity_name]
+        # Convertir les caractéristiques en tenseurs PyTorch et définir le type de données comme float32
+        tensor_features = torch.tensor(features, dtype=torch.float32)
+        # Convertir l'étiquette en un tensor PyTorch de type long
+        tensor_label = torch.tensor(label).long()
+        return tensor_features, tensor_label
+
+csv_file = "activities_dataset.csv"
+custom_dataset = CustomDataset(csv_file)
+
+custom_data_loader = DataLoader(custom_dataset, batch_size=4, shuffle=True, num_workers=0)
+
+# Définir une architecture NN simple
+class SimpleNet(nn.Module):
+    def __init__(self, input_size, num_classes):
+        super(SimpleNet, self).__init__()
+        self.fc = nn.Linear(input_size, num_classes)
+
+    def forward(self, x):
+        out = self.fc(x)
+        return out
+    
+# Dimensions d'entrée et de sortie
+input_size = len(activity_df.columns) - 2  # Nombre de colonnes moins les colonnes 'Activity' et 'Label'.
+num_classes = 10  # Nombre d'activités
+
+# Créez le modèle, la fonction de coût et l'optimiseur
+model = SimpleNet(input_size, num_classes)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+
+# Itérez à travers les époques et entraînez le modèle
+num_epochs = 20
+for epoch in range(num_epochs):
+    running_loss = 0.0
+    for i, (inputs, labels) in enumerate(custom_data_loader, 0):
+        # Zéro les gradients
+        optimizer.zero_grad()
+        # Avant, arrière + optimiser
+        outputs = model(inputs)
+        loss = criterion(outputs, labels.long())
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+    print(f"Époque: {epoch + 1}, Perte: {running_loss / len(custom_data_loader)}")
+
+print("Entraînement terminé")
+
+print(colored("--------------> Séance 4 <--------------", "blue"))
