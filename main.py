@@ -28,7 +28,6 @@ mod1 = pd.concat(mod1_parts)
 print("MOD 1 data:")
 print(mod1.head())
 
-# Colonnes MOD1
 print("Colonnes MOD1:")
 print(mod1.columns)
 
@@ -42,7 +41,6 @@ mod2 = pd.concat(mod2_parts)
 print("MOD 2 data:")
 print(mod2.head())
 
-# Colonnes MOD2
 print("Colonnes MOD2:")
 print(mod2.columns)
 
@@ -106,13 +104,11 @@ print(saved_base.columns)
 # Tâche 3 : Charger la base de données
 base = pd.read_csv('database/database.csv', sep=';')
 
-# Convertir la colonne 'Time' au format datetime avec la bonne timezone
+# Convertir la colonne 'Time' au format datetime avec la timezone
 base['Time'] = pd.to_datetime(base['Time'], dayfirst=True).dt.tz_localize('UTC').dt.tz_convert('UTC+01:00')
 
-# Vérifier les noms et le format
 print(base.dtypes)
 
-# Charger l'onglet "Done so far" du fichier activites.xlsx
 activities = pd.read_excel("data/activites.xlsx", sheet_name="Done so far", usecols=["activity", "Started", "Ended"])
 
 # Supprimer les valeurs NaN
@@ -159,7 +155,7 @@ def normalize_instance(instance, common_length):
 
     original_length = len(instance)
     x = np.linspace(0, original_length - 1, num=common_length, endpoint=True)
-    instance_array = np.array(instance.to_numpy())  # Convertir l'instance en un tableau numpy
+    instance_array = np.array(instance.to_numpy())
     f = interp1d(np.arange(original_length), instance_array, kind='linear', axis=0, bounds_error=False, fill_value="extrapolate")  # Ajoutez les arguments bounds_error et fill_value
     normalized_instance = f(x)
     return normalized_instance
@@ -168,7 +164,7 @@ import numpy as np
 
 def averageSignature(signature_values, common_length):
     normalized_instances = [normalize_instance(instance, common_length) for instance in signature_values]
-    # Filtrez les instances vides ou contenant des NaN pour éviter les erreurs lors du calcul de la moyenne
+    # Filtrer les instances vides ou contenant des NaN pour éviter les erreurs lors du calcul de la moyenne
     normalized_instances = [instance for instance in normalized_instances if len(instance) > 0 and not np.any(np.isnan(instance))]
     average_signature = np.mean(normalized_instances, axis=0)
     return average_signature
@@ -181,7 +177,6 @@ def averageSignatures(instances_list, lengths_list):
     return avg_signatures
 
 def plot_signatures(avg_activity_signatures, activity_labels):
-    # Tracez les 4 premières signatures moyennes des activités
     for i in range(min(4, len(avg_activity_signatures))):
         plt.plot(avg_activity_signatures[i], label=activity_labels[i])
 
@@ -190,10 +185,8 @@ def plot_signatures(avg_activity_signatures, activity_labels):
     plt.title('Signatures moyennes des activités')
     plt.legend()
 
-    # Enregistrez la figure dans un fichier image
     plt.savefig('activity_signatures.png', dpi=300)
 
-    # Affiche le graphique (commenter cette ligne si elle génère des avertissements)
     #plt.show()
 
 # Créer une liste de toutes les instances d'activité et une liste des longueurs moyennes
@@ -214,7 +207,7 @@ plot_signatures(avg_activity_signatures, activity_labels)
 
 print(colored("--------------> Séance 3 <--------------", "blue"))
 
-all_activities = []  # Liste pour stocker toutes les instances d'activité avec des colonnes supplémentaires
+all_activities = []
 
 for idact, row in activities.iterrows():
     start = row['Started'].tz_convert('UTC+01:00')
@@ -223,8 +216,8 @@ for idact, row in activities.iterrows():
 
     activity_data = base[(base['Time'] >= start) & (base['Time'] <= end)].reset_index(drop=True).sort_values(by='Time').drop(columns='Time')
     
-    activity_data['Activity'] = act  # Ajoute le nom de l'activité
-    activity_data['Label'] = idact  # Ajoute le numéro d'activité
+    activity_data['Activity'] = act
+    activity_data['Label'] = idact
     all_activities.append(activity_data)
 
 # Concaténer tous les sous-ensembles d'activités en un seul dataframe
@@ -239,21 +232,17 @@ print(activity_label_mapping)
 
 class CustomDataset(Dataset):
     def __init__(self, csv_file):
-        self.data = pd.read_csv(csv_file, sep=';')  # Read CSV file into DataFrame
+        self.data = pd.read_csv(csv_file, sep=';')
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         sample = self.data.iloc[idx, :]
-        # Séparez les caractéristiques (valeurs numériques) des étiquettes (noms d'activité)
-        features = sample[:-2].values.astype(float)  # en supposant que les deux dernières colonnes sont 'Activity' et 'Label'
-        activity_name = sample['Activity']  # Remplacez ceci par le nom de la colonne correspondant à l'activité (chaîne de caractères) dans votre dataframe
-        # Récupérez le numéro d'activité approprié en utilisant le dictionnaire activity_label_mapping
+        features = sample[:-2].values.astype(float)
+        activity_name = sample['Activity']
         label = activity_label_mapping[activity_name]
-        # Convertir les caractéristiques en tenseurs PyTorch et définir le type de données comme float32
         tensor_features = torch.tensor(features, dtype=torch.float32)
-        # Convertir l'étiquette en un tensor PyTorch de type long
         tensor_label = torch.tensor(label).long()
         return tensor_features, tensor_label
 
@@ -262,7 +251,7 @@ custom_dataset = CustomDataset(csv_file)
 
 custom_data_loader = DataLoader(custom_dataset, batch_size=4, shuffle=True, num_workers=0)
 
-# Définir une architecture NN simple
+# Architecture NN simple
 class SimpleNet(nn.Module):
     def __init__(self, input_size, num_classes):
         super(SimpleNet, self).__init__()
@@ -273,22 +262,20 @@ class SimpleNet(nn.Module):
         return out
     
 # Dimensions d'entrée et de sortie
-input_size = len(activity_df.columns) - 2  # Nombre de colonnes moins les colonnes 'Activity' et 'Label'.
+input_size = len(activity_df.columns) - 2  # Nombre de colonnes moins les colonnes Activity et Label
 num_classes = 10  # Nombre d'activités
 
-# Créez le modèle, la fonction de coût et l'optimiseur
+# Création du modèle, la fonction de coût et l'optimiseur
 model = SimpleNet(input_size, num_classes)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-# Itérez à travers les époques et entraînez le modèle
+# A travers les époques et entrainement du modèle
 num_epochs = 20
 for epoch in range(num_epochs):
     running_loss = 0.0
     for i, (inputs, labels) in enumerate(custom_data_loader, 0):
-        # Zéro les gradients
         optimizer.zero_grad()
-        # Avant, arrière + optimiser
         outputs = model(inputs)
         loss = criterion(outputs, labels.long())
         loss.backward()
