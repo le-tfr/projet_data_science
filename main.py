@@ -11,6 +11,8 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 
 print(colored("--------------> Séance 1 <--------------", "blue"))
@@ -286,3 +288,99 @@ for epoch in range(num_epochs):
 print("Entraînement terminé")
 
 print(colored("--------------> Séance 4 <--------------", "blue"))
+
+def create_sequences(dataset, seq_length):
+    seqs = []
+    labels = []
+    for i in range(len(dataset) - seq_length):
+        seq = dataset.iloc[i:i+seq_length, :-2].values[np.newaxis, :, :]
+        seqs.append(seq)
+        label = dataset.iloc[i+seq_length-1, -1]  # Obtenez directement l'étiquette scalaire
+        labels.append(label)
+    if seqs and labels:
+        return np.concatenate(seqs, axis=0), labels
+    else:
+        return None, None
+
+# Choisissez la longueur des séquences pour créer les données d'entrée du LSTM
+seq_length = 20
+
+# Créez des séquences pour chaque activité
+activity_sequences = {}
+for activity, instances in activity_instances.items():
+    sequences_and_labels = [create_sequences(instance, seq_length) for instance in instances if not instance.empty]
+    if sequences_and_labels:  # Vérifie si la liste n'est pas vide
+        activity_sequences[activity] = sequences_and_labels
+
+# Concaténez toutes les séquences et les étiquettes pour les différentes activités
+X_all = np.concatenate([seq for activity, seqs_and_labels in activity_sequences.items() for seq, _ in seqs_and_labels if seq is not None], axis=0)
+y_all = np.hstack([label for activity, seqs_and_labels in activity_sequences.items() for _, label in seqs_and_labels if label is not None])
+
+# Divisez les données en ensembles d'entraînement et de test
+X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.2, random_state=42)
+
+# Convertissez les données en tenseurs PyTorch
+X_train = torch.tensor(X_train, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.long)
+X_test = torch.tensor(X_test, dtype=torch.float32)
+y_test = torch.tensor(y_test, dtype=torch.long)
+
+train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+test_dataset = torch.utils.data.TensorDataset(X_test, y_test)
+
+train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=0)
+test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=0)
+
+class LSTMClassifier(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, num_classes):
+        super(LSTMClassifier, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+
+input_size = X_all.shape[2]  # Nombre de caractéristiques
+hidden_size = 64
+num_layers = 2
+num_classes = len(activity_label_mapping)  # Nombre total d'activités uniques
+
+model = LSTMClassifier(input_size, hidden_size, num_layers, num_classes)
+
+# Définissez la fonction de coût et l'optimiseur
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Entraînez le modèle
+num_epochs = 50
+for epoch in range(num_epochs):
+    running_loss = 0.0
+    for i, (inputs, labels) in enumerate(train_dataloader, 0):
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+    print(f"Époque: {epoch + 1}, Perte: {running_loss / len(train_dataloader)}")
+
+# Testez le modèle
+model.eval()
+y_true = []
+y_pred = []
+with torch.no_grad():
+    for inputs, labels in test_dataloader:
+        outputs = model(inputs)
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.tolist())
+        y_pred.extend(predicted.tolist())
+
+print(f"Accuracy: {accuracy_score(y_true, y_pred)}")
+print(f"Confusion Matrix: \n{confusion_matrix(y_true, y_pred)}")
